@@ -5,19 +5,18 @@ import triton.language as tl
 
 @triton.jit
 def sum_kernel(x_ptr, out_ptr, n, BLOCK_SIZE: tl.constexpr):
-    pid = tl.program_id(axis=0)
-    offs = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
-    
-    valid_mask = offs < n
-    
-    x = tl.load(x_ptr + offs, mask=valid_mask, other=0.0)
-    
-    block_sum = tl.sum(x, axis=0)
-    
-    tl.atomic_add(out_ptr, block_sum)
 
+    pid = tl.program_id(0)
+    offset = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offset < n
+
+    x = tl.load(x_ptr + offset, mask = mask)
+    sum = tl.sum(x, axis = 0)
+
+    tl.atomic_add(out_ptr, sum)
 
 def solve(x: torch.Tensor, out: torch.Tensor) -> None:
+    """Launch sum_kernel on the provided tensors."""
     n = x.numel()
     out.zero_()
     BLOCK_SIZE = 1024
