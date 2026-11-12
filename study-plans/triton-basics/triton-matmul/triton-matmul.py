@@ -30,7 +30,7 @@ def matmul_kernel(
     m_mask = m * BLOCK_M + tl.arange(0, BLOCK_M)[:, None] < M
     n_mask = n * BLOCK_N + tl.arange(0, BLOCK_N)[None, :] < N       
 
-    acc = tl.zeros((BLOCK_M, BLOCK_N), tl.float32)
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype = tl.float32)
 
     for chunk in tl.range(0, (K + BLOCK_K - 1) // BLOCK_K):
         
