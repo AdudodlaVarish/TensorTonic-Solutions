@@ -9,22 +9,25 @@ def dropout_kernel(
     n, p,
     BLOCK_SIZE: tl.constexpr,
 ):
-    pid = tl.program_id(axis=0)
-    offs = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    chunk = tl.program_id(0)
+    offset = chunk * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    x_ptrs = x_ptr + offset 
+    mask_ptrs = mask_ptr + offset
+
+    mask = chunk * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE) < n
     
-    valid_mask = offs < n
+    x = tl.load(x_ptrs, mask = mask, other = 0.0)
+    dropout_mask = tl.load(mask_ptrs, mask = mask, other = 0.0)
+
+    output = (x * dropout_mask) * (1 / (1-p))
+    out_ptrs = out_ptr + offset
+
+    tl.store(out_ptrs, output, mask = mask)
     
-    x = tl.load(x_ptr + offs, mask=valid_mask, other=0.0)
-    m = tl.load(mask_ptr + offs, mask=valid_mask, other=0.0)
-    
-    scale = 1.0 / (1.0 - p)
-    
-    out = x * m * scale
-    
-    tl.store(out_ptr + offs, out, mask=valid_mask)
 
 
 def solve(x: torch.Tensor, mask: torch.Tensor, out: torch.Tensor, p: float) -> None:
+    """Launch the dropout kernel: 1D grid over the input vector."""
     n = x.numel()
     BLOCK_SIZE = 1024
     grid = ((n + BLOCK_SIZE - 1) // BLOCK_SIZE,)
